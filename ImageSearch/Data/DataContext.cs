@@ -9,7 +9,8 @@ namespace ImageSearch.Data
         {
             Database.EnsureCreated();    
         }
-        public DbSet<Admin> Admins;
+
+        public DbSet<ImageSearch.Models.Admin>? Admins { get; set; }
         // public DbSet<Image> Images;
     }
 }
