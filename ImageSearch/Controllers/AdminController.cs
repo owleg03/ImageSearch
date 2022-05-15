@@ -201,7 +201,6 @@ namespace ImageSearch.Controllers
             return View(admin);
         }
 
-        [Authorize]
         public async Task<IActionResult> IndexLoggedIn(int id)
         {
             ViewBag.LoggedInId = id;
