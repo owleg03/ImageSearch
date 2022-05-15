@@ -10,6 +10,6 @@ namespace ImageSearch.Data
             Database.EnsureCreated();    
         }
         public DbSet<Admin> Admins;
-        public DbSet<Image> Images;
+        // public DbSet<Image> Images;
     }
 }
