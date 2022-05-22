@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Web;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -8,37 +9,78 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using ImageSearch.Data;
 using ImageSearch.Models;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 namespace ImageSearch.Controllers
 {
-    public class AdminController : Controller
+    [Authorize]
+    public class AdminsController : Controller
     {
         private readonly DataContext _context;
 
-        public AdminController(DataContext context)
+        public AdminsController(DataContext context)
         {
             _context = context;
+        }
+
+        
+        public async Task<IActionResult> LogOut()
+        {
+            await HttpContext.SignOutAsync();
+            return RedirectToAction("Index");
+        }
+
+        // GET: Admins/LogIn
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult LogIn()
+        {
+            return View();
+        }
+
+        // POST: Admins/LogIn/
+        [AllowAnonymous]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> LogIn([Bind("Login,Password")] LogInViewModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                var admin = await _context.Admins.FirstOrDefaultAsync(a => a.Login == model.Login &&
+                                                                      a.Password == model.Password);
+                if (admin != null)
+                {
+                    var claims = new List<Claim>
+                    {
+                        new Claim(ClaimsIdentity.DefaultNameClaimType, admin.Login)
+                    };
+                    ClaimsIdentity identity = new ClaimsIdentity(claims, "ApplicationCookie", ClaimsIdentity.DefaultNameClaimType, ClaimsIdentity.DefaultRoleClaimType);
+
+                    await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+
+                    return RedirectToAction("Index");
+                }
+                ModelState.AddModelError("", "Incorrect login/password.");
+            }
+            return View(model);
         }
 
         // GET: Admins
         public async Task<IActionResult> Index()
         {
-            //ViewBag.LoggedInIndex = -1;
             return _context.Admins != null ? 
                    View(await _context.Admins.ToListAsync()) :
                    Problem("Entity set 'DataContext.Admins'  is null.");
         }
 
-        // GET: Admins/Details/5
-        public async Task<IActionResult> Details(int? id)
+        // GET: Admins/Details
+        public async Task<IActionResult> Details()
         {
-            if (id == null || _context.Admins == null)
-            {
-                return NotFound();
-            }
+            string login = User.Claims.Select(x => x.Subject.Name).First();
 
-            var admin = await _context.Admins
-                .FirstOrDefaultAsync(m => m.Id == id);
+            var admin = await _context.Admins.FirstOrDefaultAsync(m => m.Login == login);
             if (admin == null)
             {
                 return NotFound();
@@ -54,14 +96,19 @@ namespace ImageSearch.Controllers
         }
 
         // POST: Admins/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,Login,Password")] Admin admin)
         {
             if (ModelState.IsValid)
             {
+                Admin adminDb = await _context.Admins.FirstOrDefaultAsync(a => a.Login == admin.Login);
+                if (adminDb != null)
+                {
+                    ModelState.AddModelError("", "This login is taken.");
+                    return View(admin);
+                }
+
                 _context.Add(admin);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
@@ -69,15 +116,13 @@ namespace ImageSearch.Controllers
             return View(admin);
         }
 
-        // GET: Admins/Edit/5
-        public async Task<IActionResult> Edit(int? id)
+        // GET: Admins/Edit
+        public async Task<IActionResult> Edit()
         {
-            if (id == null || _context.Admins == null)
-            {
-                return NotFound();
-            }
+            string login = User.Claims.Select(x => x.Subject.Name).First();
 
-            var admin = await _context.Admins.FindAsync(id);
+            var admin = await _context.Admins.FirstOrDefaultAsync(m => m.Login == login);
+
             if (admin == null)
             {
                 return NotFound();
@@ -86,8 +131,6 @@ namespace ImageSearch.Controllers
         }
 
         // POST: Admins/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,Login,Password")] Admin admin)
@@ -115,21 +158,18 @@ namespace ImageSearch.Controllers
                         throw;
                     }
                 }
-                return RedirectToAction("IndexLoggedIn", new { id = id });
+                return RedirectToAction("index");
             }
             return View(admin);
         }
 
-        // GET: Admins/Delete/5
-        public async Task<IActionResult> Delete(int? id)
+        // GET: Admins/Delete
+        public async Task<IActionResult> Delete()
         {
-            if (id == null || _context.Admins == null)
-            {
-                return NotFound();
-            }
+            string login = User.Claims.Select(x => x.Subject.Name).First();
 
-            var admin = await _context.Admins
-                .FirstOrDefaultAsync(m => m.Id == id);
+            var admin = await _context.Admins.FirstOrDefaultAsync(m => m.Login == login);
+
             if (admin == null)
             {
                 return NotFound();
@@ -154,57 +194,12 @@ namespace ImageSearch.Controllers
             }
             
             await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction("LogOut");
         }
 
         private bool AdminExists(int id)
         {
           return (_context.Admins?.Any(e => e.Id == id)).GetValueOrDefault();
-        }
-
-        public async Task<IActionResult> LogIn(int? id)
-        {
-            if (id == null || _context.Admins == null)
-            {
-                return NotFound();
-            }
-
-            var admin = await _context.Admins.FindAsync(id);
-            if (admin == null)
-            {
-                return NotFound();
-            }
-
-            admin.Password = "";
-            return View(admin);
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> LogIn(int id, [Bind("Id,Login,Password")] Admin admin)
-        {
-            if (id != admin.Id)
-            {
-                return NotFound();
-            }
-
-            if (ModelState.IsValid)
-            {
-                var adminFromContext = await _context.Admins.FindAsync(id);
-                if (admin.Password == adminFromContext.Password)
-                {
-                    return RedirectToAction("IndexLoggedIn", new { id = id });
-                }
-                ViewBag.IsCorrectPassword = false;
-                return View(admin);
-            }
-            return View(admin);
-        }
-
-        public async Task<IActionResult> IndexLoggedIn(int id)
-        {
-            ViewBag.LoggedInId = id;
-            return View("Index", await _context.Admins.ToListAsync());
         }
     }
 }

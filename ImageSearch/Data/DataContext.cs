@@ -11,6 +11,6 @@ namespace ImageSearch.Data
         }
 
         public DbSet<ImageSearch.Models.Admin>? Admins { get; set; }
-        // public DbSet<Image> Images;
+        public DbSet<ImageSearch.Models.Image>? Images { get; set; }
     }
 }
