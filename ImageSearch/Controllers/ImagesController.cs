@@ -22,11 +22,16 @@ namespace ImageSearch.Controllers
         }
 
         // GET: Image
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string searchString)
         {
-              return _context.Images != null ? 
-                              View(await _context.Images.ToListAsync()) :
-                              Problem("Entity set 'DataContext.Images'  is null.");
+            var images = _context.Images.ToList();
+            if (!string.IsNullOrEmpty(searchString))
+            {
+                string[] separator = { ",", " ", ".", "\"", "/" };
+                FilterImagesByKeywords(ref images, searchString, separator);
+            }
+            ViewBag.SearchString = searchString;
+            return View(images);
         }
 
         // GET: Image/Details/5
@@ -154,11 +159,6 @@ namespace ImageSearch.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        private bool ImageExists(int id)
-        {
-          return (_context.Images?.Any(e => e.Id == id)).GetValueOrDefault();
-        }
-
         // GET: Images/Privacy
         public IActionResult Privacy()
         {
@@ -170,6 +170,26 @@ namespace ImageSearch.Controllers
         public IActionResult Error()
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        }
+
+        private bool ImageExists(int id)
+        {
+            return (_context.Images?.Any(e => e.Id == id)).GetValueOrDefault();
+        }
+
+        private void FilterImagesByKeywords(ref List<Image> images, string searchString, string[] separator)
+        {
+            List<string> searchKeywords = searchString.Split(separator, StringSplitOptions.RemoveEmptyEntries).ToList();
+            List<Image> selectedImages = new();
+            foreach (var image in images)
+            {
+                List<string> imageKeywords = image.Keywords.Split(separator, StringSplitOptions.RemoveEmptyEntries).ToList();
+                if (searchKeywords.All(k => imageKeywords.Contains(k)))
+                {
+                    selectedImages.Add(image);
+                }
+            }
+            images = selectedImages;
         }
     }
 }
